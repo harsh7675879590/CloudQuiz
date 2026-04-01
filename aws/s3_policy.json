@@ -9,7 +9,7 @@
                 "s3:GetObject"
             ],
             "Resource": [
-                "arn:aws:s3:::harsh-quiz-app-12345/*"
+                "arn:aws:s3:::s3-bucket-name/*"
             ]
         }
     ]
