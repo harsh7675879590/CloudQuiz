@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard | CloudQuiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="dashboard-layout">
+    <nav class="sidebar glass-card">
+        <div class="logo">
+            <i data-feather="cloud-lightning"></i> CloudQuiz
+        </div>
+        <div class="nav-menu">
+            <a href="dashboard.html" class="nav-item active"><i data-feather="grid"></i> Available Quizzes</a>
+            <a href="results.html" class="nav-item"><i data-feather="award"></i> My Results</a>
+        </div>
+        <div class="user-profile">
+            <div class="avatar"><i data-feather="user"></i></div>
+            <div class="user-info">
+                <span id="userName">Student</span>
+                <a href="#" onclick="Auth.logout()" class="logout-link">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="dashboard-content">
+        <header class="dashboard-header">
+            <div>
+                <h1>Available Quizzes</h1>
+                <p>Test your knowledge with our latest challenges.</p>
+            </div>
+        </header>
+
+        <div class="quiz-grid" id="quizGrid">
+            <!-- Quizzes injected here via JS -->
+            <div class="loader-container">
+                <i data-feather="loader" class="spin large-icon"></i>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        Auth.requireRole('student');
+        document.getElementById('userName').textContent = Auth.getUser().name;
+
+        async function loadQuizzes() {
+            try {
+                const res = await api.get('/student/quizzes');
+                const quizzes = res.data;
+                const grid = document.getElementById('quizGrid');
+                
+                if (quizzes.length === 0) {
+                    grid.innerHTML = '<div class="empty-state"><i data-feather="inbox"></i><p>No active quizzes available.</p></div>';
+                    feather.replace();
+                    return;
+                }
+
+                grid.innerHTML = quizzes.map(q => `
+                    <div class="quiz-card glass-card">
+                        <div class="quiz-card-header">
+                            <h3>${q.title}</h3>
+                            <span class="badge badge-primary">${q.question_count} Qs</span>
+                        </div>
+                        <p class="quiz-desc">${q.description}</p>
+                        <div class="quiz-meta">
+                            <span><i data-feather="clock"></i> ${Math.floor(q.time_limit / 60)} mins</span>
+                            <span><i data-feather="target"></i> ${q.pass_score}% to pass</span>
+                        </div>
+                        <a href="quiz.html?id=${q.id}" class="btn btn-primary btn-block mt-4">Start Quiz</a>
+                    </div>
+                `).join('');
+                
+                feather.replace();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('quizGrid').innerHTML = '<div class="error-message mx-auto">Failed to load quizzes. Ensure backend is running.</div>';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            feather.replace();
+            loadQuizzes();
+        });
+    </script>
+</body>
+</html>

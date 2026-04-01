@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Results | CloudQuiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="dashboard-layout">
+    <nav class="sidebar glass-card">
+        <div class="logo">
+            <i data-feather="cloud-lightning"></i> CloudQuiz
+        </div>
+        <div class="nav-menu">
+            <a href="dashboard.html" class="nav-item"><i data-feather="grid"></i> Available Quizzes</a>
+            <a href="results.html" class="nav-item active"><i data-feather="award"></i> My Results</a>
+        </div>
+        <div class="user-profile">
+            <div class="avatar"><i data-feather="user"></i></div>
+            <div class="user-info">
+                <span id="userName">Student</span>
+                <a href="#" onclick="Auth.logout()" class="logout-link">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="dashboard-content">
+        <header class="dashboard-header">
+            <div>
+                <h1>My Results</h1>
+                <p>Track your learning progress and review past attempts.</p>
+            </div>
+        </header>
+
+        <div class="table-container glass-card">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Quiz Title</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                    <tr><td colspan="4" class="text-center"><i data-feather="loader" class="spin"></i> Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        Auth.requireRole('student');
+        document.getElementById('userName').textContent = Auth.getUser().name;
+
+        async function loadResults() {
+            try {
+                const res = await api.get('/student/attempts');
+                const attempts = res.data;
+                const tbody = document.getElementById('resultsBody');
+                
+                if (attempts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center empty-state"><i data-feather="inbox"></i><br>No attempts found. Take a quiz first!</td></tr>';
+                    feather.replace();
+                    return;
+                }
+
+                tbody.innerHTML = attempts.map(a => {
+                    const date = new Date(a.started_at).toLocaleString();
+                    const statusClass = a.passed ? 'badge-success' : 'badge-danger';
+                    const statusText = a.passed ? 'Passed' : 'Failed';
+                    
+                    return `
+                        <tr>
+                            <td>${date}</td>
+                            <td><strong>${a.quiz_title}</strong></td>
+                            <td>${a.score} / ${a.max_score} (${a.percentage}%)</td>
+                            <td><span class="badge ${statusClass}">${statusText}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                feather.replace();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('resultsBody').innerHTML = '<tr><td colspan="4" class="text-center error-message">Failed to load results.</td></tr>';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            feather.replace();
+            loadResults();
+        });
+    </script>
+</body>
+</html>

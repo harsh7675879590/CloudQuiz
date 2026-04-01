@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | CloudQuiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="dashboard-layout">
+    <nav class="sidebar glass-card">
+        <div class="logo">
+            <i data-feather="cloud-lightning"></i> CloudQuiz <span class="badge badge-danger">Admin</span>
+        </div>
+        <div class="nav-menu">
+            <a href="dashboard.html" class="nav-item active"><i data-feather="layers"></i> Manage Quizzes</a>
+            <a href="create_quiz.html" class="nav-item"><i data-feather="plus-circle"></i> Create Quiz</a>
+        </div>
+        <div class="user-profile">
+            <div class="avatar"><i data-feather="shield"></i></div>
+            <div class="user-info">
+                <span id="userName">Admin</span>
+                <a href="#" onclick="Auth.logout()" class="logout-link">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="dashboard-content">
+        <header class="dashboard-header">
+            <div>
+                <h1>Quiz Management</h1>
+                <p>Create, edit, and analyze platform quizzes.</p>
+            </div>
+            <a href="create_quiz.html" class="btn btn-primary"><i data-feather="plus"></i> New Quiz</a>
+        </header>
+
+        <div class="table-container glass-card mt-4">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Created</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="quizzesBody">
+                    <tr><td colspan="5" class="text-center"><i data-feather="loader" class="spin"></i> Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        Auth.requireRole('admin');
+        document.getElementById('userName').textContent = Auth.getUser().name;
+
+        async function loadQuizzes() {
+            try {
+                const res = await api.get('/quizzes/');
+                const quizzes = res.data;
+                const tbody = document.getElementById('quizzesBody');
+                
+                if (quizzes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center empty-state"><i data-feather="inbox"></i><br>No quizzes found. Create one!</td></tr>';
+                    feather.replace();
+                    return;
+                }
+
+                tbody.innerHTML = quizzes.map(q => {
+                    const date = new Date(q.created_at).toLocaleDateString();
+                    const statusClass = q.is_active ? 'badge-success' : 'badge-danger';
+                    const statusText = q.is_active ? 'Active' : 'Draft';
+                    
+                    return `
+                        <tr>
+                            <td>#${q.id}</td>
+                            <td><strong>${q.title}</strong></td>
+                            <td>${date}</td>
+                            <td><span class="badge ${statusClass}">${statusText}</span></td>
+                            <td>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-sm btn-secondary" onclick="viewAnalytics(${q.id})" title="Analytics"><i data-feather="bar-chart-2"></i></button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteQuiz(${q.id})" title="Delete"><i data-feather="trash-2"></i></button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                feather.replace();
+            } catch (err) {
+                console.error(err);
+                document.getElementById('quizzesBody').innerHTML = '<tr><td colspan="5" class="text-center error-message">Failed to load quizzes.</td></tr>';
+            }
+        }
+
+        async function deleteQuiz(id) {
+            if (!confirm('Are you sure you want to delete this quiz? All related attempts and questions will be destroyed.')) return;
+            
+            try {
+                await api.delete(`/quizzes/${id}`);
+                loadQuizzes();
+            } catch (err) {
+                console.error(err);
+                alert('Failed to delete quiz.');
+            }
+        }
+
+        async function viewAnalytics(id) {
+            try {
+                const res = await api.get(`/quizzes/${id}/analytics`);
+                const data = res.data;
+                alert(`Quiz Statistics:\n\nTotal Attempts: ${data.total_attempts}\nPassed: ${data.passed}\nFailed: ${data.failed}\nAverage Score: ${data.average_score}%`);
+            } catch (err) {
+                console.error(err);
+                alert('Failed to load analytics.');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            feather.replace();
+            loadQuizzes();
+        });
+    </script>
+</body>
+</html>

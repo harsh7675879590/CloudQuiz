@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | CloudQuiz</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body class="centered-layout">
+    <div class="auth-card glass-card">
+        <div class="auth-header">
+            <i data-feather="cloud-lightning" class="auth-logo"></i>
+            <h2>Welcome Back</h2>
+            <p>Enter your credentials to continue.</p>
+        </div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <div class="input-with-icon">
+                    <i data-feather="mail"></i>
+                    <input type="email" id="email" required placeholder="student@quiz.com">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-with-icon">
+                    <i data-feather="lock"></i>
+                    <input type="password" id="password" required placeholder="••••••••">
+                </div>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+                Sign In
+                <i data-feather="arrow-right"></i>
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Admin? <a href="#" onclick="document.getElementById('email').value='admin@quiz.com'; document.getElementById('password').value='Admin@123';">Fill admin credits</a></p>
+            <p>Student? <a href="#" onclick="document.getElementById('email').value='student@quiz.com'; document.getElementById('password').value='Student@123';">Fill student credits</a></p>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        feather.replace();
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const errorDiv = document.getElementById('errorMessage');
+            
+            errorDiv.style.display = 'none';
+            btn.innerHTML = '<i data-feather="loader" class="spin"></i> Authenticating...';
+            feather.replace();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const res = await api.post('/auth/login', { email, password });
+                const { access_token, user } = res.data;
+                
+                Auth.login(access_token, user);
+            } catch (error) {
+                errorDiv.textContent = error.response?.data?.error || 'Failed to connect to server';
+                errorDiv.style.display = 'block';
+                btn.innerHTML = 'Sign In <i data-feather="arrow-right"></i>';
+                feather.replace();
+            }
+        });
+    </script>
+</body>
+</html>

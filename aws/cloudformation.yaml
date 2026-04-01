@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudQuiz Infrastructure: EC2, RDS (MySQL), and S3 Static Website Hosting'
+
+Parameters:
+  DBUsername:
+    Type: String
+    Default: quizadmin
+    Description: Database admin username
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Database password
+  S3BucketName:
+    Type: String
+    Description: Name for the S3 bucket (must be globally unique)
+
+Resources:
+  # ── VPC & Security Groups ────────────────────────────────────────────────────────
+  QuizVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref QuizVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref QuizVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      MapPublicIpOnLaunch: true
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref QuizVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      MapPublicIpOnLaunch: true
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref QuizVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  Subnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  Subnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP and SSH access
+      VpcId: !Ref QuizVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow access to RDS from EC2
+      VpcId: !Ref QuizVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref WebServerSecurityGroup
+
+  # ── Database (RDS) ─────────────────────────────────────────────────────────────────
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets for MySQL
+      SubnetIds: 
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+
+  QuizMySQLDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: mysql
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      DBName: quizdb
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups: 
+        - !Ref DBSecurityGroup
+      PubliclyAccessible: false
+
+  # ── Compute (EC2) ──────────────────────────────────────────────────────────────────
+  AppServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: ami-0c55b159cbfafe1f0 # Amazon Linux 2 (us-east-2)
+      NetworkInterfaces: 
+        - GroupSet: 
+            - !Ref WebServerSecurityGroup
+          AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnet1
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install python3 pip3 git -y
+          pip3 install flask flask-sqlalchemy flask-jwt-extended pymysql gunicorn
+          # Configure .env remotely and restart...
+
+  # ── Static Storage (S3) ────────────────────────────────────────────────────────────
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "arn:aws:s3:::${FrontendBucket}/*"
+
+Outputs:
+  WebsiteURL:
+    Description: URL of the Quiz app frontend
+    Value: !GetAtt FrontendBucket.WebsiteURL
+  ApiServerIP:
+    Description: Public IP of the API Server
+    Value: !GetAtt AppServer.PublicIp
+  DatabaseEndpoint:
+    Description: Connection string for RDS
+    Value: !GetAtt QuizMySQLDatabase.Endpoint.Address

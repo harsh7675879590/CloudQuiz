@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Quiz | CloudQuiz Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://unpkg.com/feather-icons"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .creator-container { max-width: 900px; margin: 0 auto 2rem; }
+        .q-block { background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem; }
+        .opt-row { display: flex; gap: 1rem; align-items: center; margin-bottom: 0.5rem; }
+        .opt-row input[type="text"] { flex: 1; padding: 0.5rem; background: var(--bg-color); border: 1px solid var(--border-color); color: #fff; border-radius: 4px; }
+        .q-block input.q-title { width: 100%; padding: 0.8rem; margin-bottom: 1rem; background: var(--bg-color); border: 1px solid var(--border-color); color: #fff; border-radius: 4px; font-size: 1.1rem; }
+    </style>
+</head>
+<body class="dashboard-layout">
+    <nav class="sidebar glass-card">
+        <div class="logo">
+            <i data-feather="cloud-lightning"></i> CloudQuiz <span class="badge badge-danger">Admin</span>
+        </div>
+        <div class="nav-menu">
+            <a href="dashboard.html" class="nav-item"><i data-feather="layers"></i> Manage Quizzes</a>
+            <a href="create_quiz.html" class="nav-item active"><i data-feather="plus-circle"></i> Create Quiz</a>
+        </div>
+    </nav>
+
+    <main class="dashboard-content">
+        <header class="dashboard-header">
+            <div>
+                <h1>Create Content</h1>
+                <p>Build a new AWS certification quiz.</p>
+            </div>
+            <button class="btn btn-success" id="btnSaveQuiz"><i data-feather="save"></i> Publish</button>
+        </header>
+
+        <div class="creator-container">
+            <!-- Quiz Meta -->
+            <div class="glass-card" style="padding: 2rem; margin-bottom: 2rem;">
+                <h3>Quiz Settings</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem;">
+                    <div class="form-group">
+                        <label>Title</label>
+                        <input type="text" id="quizTitle" class="q-title" style="width: 100%; padding: 0.8rem;" placeholder="e.g. AWS Solutions Architect Basics">
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" id="quizDesc" class="q-title" style="width: 100%; padding: 0.8rem;" placeholder="Short summary of topics covered">
+                    </div>
+                    <div class="form-group">
+                        <label>Time Limit (Seconds)</label>
+                        <input type="number" id="quizTime" class="q-title" style="width: 100%; padding: 0.8rem;" value="600">
+                    </div>
+                    <div class="form-group">
+                        <label>Pass Score (%)</label>
+                        <input type="number" id="quizPass" class="q-title" style="width: 100%; padding: 0.8rem;" value="70">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Questions Editor -->
+            <div id="questionsEditor"></div>
+
+            <button class="btn btn-secondary btn-block mt-4" style="padding: 1rem;" onclick="addQuestionBlock()">
+                <i data-feather="plus"></i> Add Question
+            </button>
+        </div>
+    </main>
+
+    <!-- Overlay -->
+    <div class="loading-overlay hidden" id="overlay">
+        <i data-feather="loader" class="spin large-icon"></i>
+        <h3 class="mt-4" id="overlayText">Saving...</h3>
+    </div>
+
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script>
+        Auth.requireRole('admin');
+        let questionCount = 0;
+
+        function addQuestionBlock() {
+            questionCount++;
+            const qId = `q_${questionCount}`;
+            
+            const html = `
+                <div class="q-block" id="block_${qId}">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                        <strong>Question ${questionCount}</strong>
+                        <button class="btn btn-sm btn-danger" onclick="document.getElementById('block_${qId}').remove()"><i data-feather="trash"></i></button>
+                    </div>
+                    <input type="text" class="q-title" id="text_${qId}" placeholder="Enter question text here..." required>
+                    
+                    <div class="options-container" id="opts_${qId}">
+                        ${[1, 2, 3, 4].map(i => `
+                            <div class="opt-row">
+                                <input type="radio" name="correct_${qId}" value="${i}" ${i === 1 ? 'checked' : ''}>
+                                <input type="text" id="opt_${qId}_${i}" placeholder="Option ${i}" required>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('questionsEditor').insertAdjacentHTML('beforeend', html);
+            feather.replace();
+        }
+
+        document.getElementById('btnSaveQuiz').addEventListener('click', async () => {
+            const title = document.getElementById('quizTitle').value;
+            if (!title) return alert("Quiz title is required!");
+            
+            // Gather Meta
+            const quizPayload = {
+                title,
+                description: document.getElementById('quizDesc').value,
+                time_limit: parseInt(document.getElementById('quizTime').value),
+                pass_score: parseInt(document.getElementById('quizPass').value),
+                is_active: true
+            };
+
+            // Gather Questions
+            const qBlocks = document.querySelectorAll('.q-block');
+            if (qBlocks.length === 0) return alert("Add at least one question!");
+
+            const questionsPayload = Array.from(qBlocks).map((block, idx) => {
+                const blockId = block.id.replace('block_', '');
+                const text = document.getElementById(`text_${blockId}`).value;
+                
+                const options = [1, 2, 3, 4].map(i => {
+                    const optText = document.getElementById(`opt_${blockId}_${i}`).value;
+                    const isCorrect = document.querySelector(`input[name="correct_${blockId}"]:checked`).value == i;
+                    return { text: optText, is_correct: isCorrect };
+                }).filter(o => o.text.trim() !== '');
+
+                return { text, order_num: idx, points: 1, options };
+            });
+
+            // Submit
+            document.getElementById('overlay').classList.remove('hidden');
+            try {
+                // 1. Create Quiz
+                const resQuiz = await api.post('/quizzes/', quizPayload);
+                const newQuizId = resQuiz.data.id;
+                
+                // 2. Submit Questions Serially
+                for (const q of questionsPayload) {
+                    await api.post(`/quizzes/${newQuizId}/questions`, q);
+                }
+                
+                window.location.href = 'dashboard.html';
+            } catch (err) {
+                console.error(err);
+                document.getElementById('overlayText').textContent = "Error saving quiz!";
+                setTimeout(() => document.getElementById('overlay').classList.add('hidden'), 2000);
+            }
+        });
+
+        // Init with one block
+        document.addEventListener('DOMContentLoaded', () => {
+            feather.replace();
+            addQuestionBlock();
+        });
+    </script>
+</body>
+</html>
