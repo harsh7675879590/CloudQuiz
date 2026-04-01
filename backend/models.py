@@ -68,6 +68,7 @@ class Question(db.Model):
     order_num  = db.Column(db.Integer, default=0)
 
     options    = db.relationship("Option", backref="question", cascade="all,delete", lazy=True)
+    answers    = db.relationship("Answer", cascade="all,delete", lazy=True, overlaps="question_ref")
 
     def to_dict(self, include_correct=False):
         return {
@@ -85,6 +86,8 @@ class Option(db.Model):
     question_id = db.Column(db.Integer, db.ForeignKey("questions.id"), nullable=False)
     text        = db.Column(db.String(500), nullable=False)
     is_correct  = db.Column(db.Boolean, default=False)
+
+    answers     = db.relationship("Answer", cascade="all,delete", lazy=True, overlaps="option_ref")
 
     def to_dict(self, include_correct=False):
         d = {"id": self.id, "text": self.text}
