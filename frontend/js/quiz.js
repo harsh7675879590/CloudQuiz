@@ -169,9 +169,21 @@ async function submitQuiz(autoSubmit = false) {
     }));
     
     try {
-        await api.post(`/student/attempts/${attemptId}/submit`, {
+        const res = await api.post(`/student/attempts/${attemptId}/submit`, {
             answers: answersArray
         });
+        
+        const details = res.data.details;
+        let msg = `Quiz Completed!\n\nScore: ${res.data.score}/${res.data.max_score} (${res.data.percentage}%)\nResult: ${res.data.passed ? 'PASSED ✅' : 'FAILED ❌'}\n\n`;
+        msg += `--- Answer Review ---\n`;
+        
+        if (details) {
+            details.forEach((d, i) => {
+                 msg += `Q${i+1}: ${d.is_correct ? 'Correct ✅' : 'Incorrect ❌'}\n`;
+            });
+        }
+        
+        alert(msg);
         window.location.href = 'results.html';
     } catch (err) {
         console.error(err);

@@ -16,7 +16,7 @@ class User(db.Model):
     role       = db.Column(db.Enum("admin", "student"), default="student", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    attempts   = db.relationship("Attempt", backref="user", lazy=True)
+    attempts   = db.relationship("Attempt", backref="user", cascade="all,delete", lazy=True)
 
     def set_password(self, raw):
         self.password = generate_password_hash(raw)
@@ -42,7 +42,7 @@ class Quiz(db.Model):
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
 
     questions   = db.relationship("Question", backref="quiz", cascade="all,delete", lazy=True)
-    attempts    = db.relationship("Attempt",  backref="quiz", lazy=True)
+    attempts    = db.relationship("Attempt",  backref="quiz", cascade="all,delete", lazy=True)
 
     def to_dict(self, include_questions=False):
         d = {

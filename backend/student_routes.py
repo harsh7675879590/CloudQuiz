@@ -55,28 +55,36 @@ def submit_quiz(attempt_id):
     total_score = 0
     max_score = sum(q.points for q in quiz.questions)
     
-    for ans in answers_data:
-        q_id = ans.get("question_id")
+    answer_details = []
+    
+    for question in quiz.questions:
+        # Find the user's answer for this question
+        ans = next((a for a in answers_data if a.get("question_id") == question.id), {})
         opt_id = ans.get("option_id")
         
-        question = Question.query.get(q_id)
-        if not question or question.quiz_id != quiz.id:
-            continue
-            
         is_correct = False
+        correct_option_id = next((o.id for o in question.options if o.is_correct), None)
+        
         if opt_id:
             option_obj = Option.query.get(opt_id)
-            if option_obj and option_obj.question_id == q_id and option_obj.is_correct:
+            if option_obj and option_obj.question_id == question.id and option_obj.is_correct:
                 is_correct = True
                 total_score += question.points
                 
         answer_record = Answer(
             attempt_id=attempt.id,
-            question_id=q_id,
+            question_id=question.id,
             option_id=opt_id,
             is_correct=is_correct
         )
         db.session.add(answer_record)
+        
+        answer_details.append({
+            "question_text": question.text,
+            "selected_option_id": opt_id,
+            "correct_option_id": correct_option_id,
+            "is_correct": is_correct
+        })
         
     percentage = (total_score / max_score * 100) if max_score > 0 else 0
     passed = percentage >= quiz.pass_score
@@ -89,7 +97,9 @@ def submit_quiz(attempt_id):
     
     db.session.commit()
     
-    return jsonify(attempt.to_dict()), 200
+    resp = attempt.to_dict()
+    resp["details"] = answer_details
+    return jsonify(resp), 200
 
 @student_bp.route("/attempts", methods=["GET"])
 @jwt_required()
