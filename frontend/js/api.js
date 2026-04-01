@@ -2,7 +2,7 @@
 
 // Create Axios Instance
 const api = axios.create({
-    baseURL: 'http://54.205.186.130:5000/api', // To be replaced in prod with actual API URL
+    baseURL: 'http://localhost:5000', // To be replaced in prod with actual API URL
     headers: {
         'Content-Type': 'application/json'
     }
